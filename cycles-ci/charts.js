@@ -42,11 +42,8 @@ function select_handler(device, selected_chart, elem, ncols)
 }
 
 // master charts
-function draw_master_charts()
+function draw_master_charts(json_data)
 {
-	// load json data
-	var json_data = $.ajax({url: "master.json", dataType: "json", async: false}).responseJSON;
-
 	// clear contents
 	charts_elem = document.getElementById("master-charts");
 	while(charts_elem.firstChild)
@@ -93,11 +90,8 @@ function draw_master_charts()
 }
 
 // differential revision and local tag charts
-function draw_comparison_charts(json_filename, element_id)
+function draw_comparison_charts(json_data, element_id)
 {
-	// load json data
-	var json_data = $.ajax({url: json_filename, dataType: "json", async: false}).responseJSON;
-
 	// clear contents
 	charts_elem = document.getElementById(element_id);
 	if (json_data.length == 0)
@@ -185,14 +179,50 @@ function draw_comparison_charts(json_filename, element_id)
 			parent_div.appendChild(elem);
 
 			google.visualization.events.addListener(chart, 'select', select_handler.bind(null, device, chart, elem, 1));
+
+			// print table to paste in phabricator
+			var table = "**" + device["name"] + "**\n";
+
+			cols = device["data"]["cols"]
+			rows = device["data"]["rows"]
+
+			for (var c = 0; c < cols.length; c++) {
+				var col = cols[c];
+				var label = col["label"]
+				if (!(label && label != "ref" && col["type"] == "number")) {
+					continue;
+				}
+
+				for (var r = 0; r < rows.length; r++) {
+					var row = rows[r]["c"];
+					var pct = Math.round(row["v"] * 10000) / 100
+					table += "|" + row[0]["v"] + "|";
+					if (pct > 0.0) {
+						table += "+";
+					}
+					table += pct + "%|\n";
+				}
+			}
+
+			elem = document.createElement('pre');
+			elem.innerHTML = table;
+			parent_div.appendChild(elem);
 		}
 	}
 }
 
 function draw_charts()
 {
-	draw_master_charts();
-	draw_comparison_charts('diffs.json', 'diff-charts');
-	draw_comparison_charts('tags.json', 'tag-charts');
+  $.getJSON('master.json', function(json_data) {
+	  draw_master_charts(json_data);
+  });
+
+  $.getJSON('diffs.json', function(json_data) {
+	  draw_comparison_charts(json_data, 'diff-charts');
+  });
+
+  $.getJSON('tags.json', function(json_data) {
+	  draw_comparison_charts(json_data, 'tag-charts');
+  });
 }
 
